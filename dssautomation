@@ -1,0 +1,76 @@
+#!/usr/bin/python3
+import sys
+import shutil, os
+import glob
+from types import TracebackType
+from warnings import catch_warnings
+#files = ['file1.txt', 'file2.txt', 'file3.txt']
+
+def disp_help():
+    print('display some help here!')
+
+def copy_files(dir_from, dir_to):
+    from_pattern = os.path.join(dir_from, '') + '*.fit'
+    files = glob.glob(from_pattern)
+
+    print(glob.glob(from_pattern))
+    for f in files:
+        target_file = os.path.join(dir_to, '') + os.path.basename(f)
+        shutil.copy(f, target_file)
+
+if len(sys.argv) < 4:
+    print('Not enough arguments')
+    sys.exit()
+
+args = sys.argv
+args.pop(0)
+
+do_copy = False
+do_reg  = False
+do_regall = False
+do_copy = False
+
+if '-c' in args or '--copy' in args:
+    try:
+        args.remove('-c')
+        args.remove('--copy')
+    except:
+        pass
+    do_copy = True
+
+if '-a' in args or '--add' in args:
+    try:
+        args.remove('-a')
+        args.remove('--add')
+    except:
+        pass    
+    do_add = True
+
+if '-r' in args or '--register' in args:
+    try:
+        args.remove('-r')
+        args.remove('--register')
+    except:
+        pass
+    do_reg = True
+
+if '-R' in args or '--register-all' in args:
+    try:
+        args.remove('-R')
+        args.remove('--register-all')
+    except:
+        pass
+    do_regall = True
+
+if len(args) > 2:
+    print('Wrong argument!')
+    disp_help()
+    sys.exit()
+
+if len(args) != 2:
+    print('Please specify from and to path')
+    disp_help()
+    sys.exit()
+
+if do_copy == True:
+    copy_files(str(args[0]), str(args[1]))
