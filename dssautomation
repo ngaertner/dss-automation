@@ -1,22 +1,105 @@
 #!/usr/bin/python3
+from re import A
 import sys
 import shutil, os
 import glob
 from types import TracebackType
 from warnings import catch_warnings
-#files = ['file1.txt', 'file2.txt', 'file3.txt']
+from pathlib import Path
+from astropy.io import fits
+
 
 def disp_help():
     print('display some help here!')
 
-def copy_files(dir_from, dir_to):
-    from_pattern = os.path.join(dir_from, '') + '*.fit'
+def add_files(dir, files):
+    print('### add ###')
+    # read and collect all fits files in subdirectory of every filter
+
+    for f in files:
+        filename     = os.path.basename(f)
+        path         = os.path.dirname(f)
+        path, filter = os.path.split(path)
+        foldername   = os.path.basename(os.path.normpath(path))
+        rel_filename = os.path.relpath(f, path)
+        if rel_filename[0] != '.':
+            rel_filename = os.path.join('.',rel_filename)
+
+        dss_file = foldername + '_' + filter + '.dssfilelist'
+        dss_file_path = os.path.join(path,dss_file)
+        
+        file_found = False
+        line_index = 0
+
+        print(rel_filename)
+
+        with open(dss_file_path) as file:
+            lines = file.readlines()
+        for line in lines:
+            if line[0] == 'C' or line[0] == 'D':                
+                line_index = line_index + 1
+                continue
+            elif line[0] == '1' or line[0] == '0':
+                if line[2] == 'l' and  rel_filename in line:
+                    file_found = True
+                    break
+            else:
+                break
+            line_index = line_index + 1
+
+        if file_found == False:
+            line = '1\tlight\t' + rel_filename + '\n'
+            lines.insert(line_index-1,line)
+        
+        with open(dss_file_path, 'w') as f:
+            for line in lines:
+                f.write(line)
+        #f.write("%s\n" % item)
+
+                
+
+
+def reg_files(reg_all):
+    print('### register ###')
+
+def copy_files(dir_from, dir_to, do_move):
+    print('### COPY ###')
+
+    target_files = []
+    from_pattern = os.path.join(dir_from, '') + '*.fits'
     files = glob.glob(from_pattern)
 
-    print(glob.glob(from_pattern))
     for f in files:
-        target_file = os.path.join(dir_to, '') + os.path.basename(f)
+        filename = os.path.basename(f)
+        if '_L_' in filename:
+            filter = 'L'
+        elif '_R_' in filename:
+            filter = 'R'
+        elif '_G_' in filename:
+            filter = 'G'
+        elif '_B_' in filename:
+            filter = 'G'
+        elif '_Ha_' in filename:
+            filter = 'Ha'
+        elif '_Oiii_' in filename:
+            filter = 'Oiii'
+        elif '_Sii_' in filename:
+            filter = 'Sii'
+        else:
+            print('ERROR: Unknown Filter Pattern for File: ' + os.path.basename(f))
+            continue
+
+        target_path = os.path.join(dir_to, '') + os.path.join(filter, '')
+        Path(target_path).mkdir(parents=True, exist_ok=True)
+
+        target_file = target_path + os.path.basename(f)
+        target_files.append(target_file)
+        print(f + ' -> ' + target_file)
+
         shutil.copy(f, target_file)
+        if do_move == True:
+            os.remove(f)
+        return target_files
 
 if len(sys.argv) < 4:
     print('Not enough arguments')
@@ -29,6 +112,19 @@ do_copy = False
 do_reg  = False
 do_regall = False
 do_copy = False
+do_move = False
+do_add  = False
+file = []
+
+
+if '-m' in args or '--move' in args:
+    try:
+        args.remove('-m')
+        args.remove('--move')
+    except:
+        pass
+    do_move = True
+
 
 if '-c' in args or '--copy' in args:
     try:
@@ -67,10 +163,21 @@ if len(args) > 2:
     disp_help()
     sys.exit()
 
-if len(args) != 2:
-    print('Please specify from and to path')
-    disp_help()
-    sys.exit()
+if len(args) == 2:
+    from_path = args[0]
+    to_path   = args[1]
+elif len(args) == 1:
+    to_path   = args[0]    
 
-if do_copy == True:
-    copy_files(str(args[0]), str(args[1]))
+if do_copy == True or do_move == True:
+    if len(args) != 2:
+        print('Please specify from and to path')
+        disp_help()
+        sys.exit()
+    files = copy_files(from_path, to_path, do_move)
+
+if do_add == True:
+    add_files(to_path,files)
+
+if do_reg == True or do_regall == True:
+    reg_files(do_regall)
