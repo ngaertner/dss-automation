@@ -1,23 +1,37 @@
 #!/usr/bin/python3
-from re import A
+from re import A, I
 import sys
 import shutil, os
 import glob
-from types import TracebackType
-from warnings import catch_warnings
+import json
+#from types import TracebackType
+#from warnings import catch_warnings
 from pathlib import Path
 from astropy.io import fits
+import subprocess
+
+#from sympy import appellf1, arg
 
 
+###########################################
 def disp_help():
     print('display some help here!')
 
+###########################################
 def add_files(dir, files):
     print('### add ###')
     # read and collect all fits files in subdirectory of every filter
 
+    dss_file_list = []
+    dss_file_list_set = set(dss_file_list)
+
+    with open('./config.json', 'r') as f:
+        config = json.load(f)
+
+
     for f in files:
-        filename     = os.path.basename(f)
+        entry_found = False    
+        
         path         = os.path.dirname(f)
         path, filter = os.path.split(path)
         foldername   = os.path.basename(os.path.normpath(path))
@@ -27,41 +41,145 @@ def add_files(dir, files):
 
         dss_file = foldername + '_' + filter + '.dssfilelist'
         dss_file_path = os.path.join(path,dss_file)
+        dss_file_folder = path
         
-        file_found = False
+        entry_found = False
+
         line_index = 0
 
         print(rel_filename)
 
-        with open(dss_file_path) as file:
-            lines = file.readlines()
+        #read offset and gain from fits
+        hdul = fits.open(f)
+        hdul[0].header['GAIN']
+        hdul[0].header['OFFSET']
+
+        #search for correct flat and dark specified in config
+        for dark in config['darks']:
+            if dark['gain'] == hdul[0].header['GAIN'] and dark['offset'] == hdul[0].header['OFFSET']:
+                dark_cali_file = dark['location']
+        for flat in config['flats']:
+            if flat['filter'] == filter:
+                flat_cali_file = flat['location']
+
+
+        flats = []
+        darks = []
+        lines = []
+
+        if os.path.exists(dss_file_path) == False:
+            #create new empty dss default file
+            lines.append('DSS file list\n')
+            lines.append('CHECKED\tTYPE\tFILE\n')
+
+            #add flats + darks
+            if dark_cali_file != '':
+                try:
+                    rel_dark_cali_file = os.path.relpath(dark_cali_file,dss_file_folder)                
+                except ValueError:
+                    rel_dark_cali_file = dark_cali_file
+
+                lines.append('1\tdark\t' + rel_dark_cali_file  + '\n')
+            if flat_cali_file != '':
+                try:
+                    rel_flat_cali_file = os.path.relpath(flat_cali_file,dss_file_folder)                
+                except ValueError:
+                    rel_flat_cali_file = flat_cali_file
+                lines.append('1\tflat\t' + rel_flat_cali_file + '\n')
+            
+            #add default config
+            lines.append(config['dss_config'])
+                        
+        else:
+            #open existing dss list file
+            with open(dss_file_path) as file:
+                lines = file.readlines()
+
+
+        if dss_file_path not in dss_file_list_set:
+            dss_file_list_set.add(dss_file_path)
+            dss_file_list.append(dss_file_path)
+
+
+        # search for master flats and master darks in file
+            for line in lines:
+                if ( line[0] == '1' or line[0] == '0' ) and line[2] == 'd':
+                    darks.append(line[7:-1])
+                elif ( line[0] == '1' or line[0] == '0' ) and line[2] == 'f':
+                    flats.append(line[7:-1])
+                elif ( line[0] == '#' ):
+                    break        
+
         for line in lines:
             if line[0] == 'C' or line[0] == 'D':                
                 line_index = line_index + 1
                 continue
             elif line[0] == '1' or line[0] == '0':
                 if line[2] == 'l' and  rel_filename in line:
-                    file_found = True
+                    entry_found = True
                     break
             else:
+                line_index = line_index + 1
                 break
             line_index = line_index + 1
 
-        if file_found == False:
+        if entry_found == False:
             line = '1\tlight\t' + rel_filename + '\n'
             lines.insert(line_index-1,line)
-        
-        with open(dss_file_path, 'w') as f:
-            for line in lines:
-                f.write(line)
-        #f.write("%s\n" % item)
-
+            with open(dss_file_path, 'w') as f:
+                for line in lines:
+                    f.write(line)
+#                if dss_file_path not in dss_file_list_set:
+#                    dss_file_list_set.add(dss_file_path)
+#                    dss_file_list.append(dss_file_path)
+    return dss_file_list
                 
+def stack_files(dss_files):
+    print('### stack ###')
+    with open('./config.json', 'r') as f:
+        config = json.load(f)
+    
+    arguments = []
 
 
-def reg_files(reg_all):
+    command = config['dss_cl_location']
+
+    arguments.append (command)                
+
+    arguments.append('/S')
+    arguments.append('/FITS')
+    
+    for dss_file in dss_files:
+        arguments.append (dss_file)                
+        subprocess.run(arguments)
+        del arguments[-1]
+
+
+
+###########################################
+def reg_files(reg_all,dss_files):
     print('### register ###')
+    with open('./config.json', 'r') as f:
+        config = json.load(f)
+    
+    arguments = []
 
+
+    command = config['dss_cl_location']
+
+    arguments.append (command)                
+
+    if reg_all == True:
+        arguments.append('/R')
+    else:
+        arguments.append('/r')
+    
+    for dss_file in dss_files:
+        arguments.append (dss_file)                
+        subprocess.run(arguments)
+        del arguments[-1]
+
+###########################################
 def copy_files(dir_from, dir_to, do_move):
     print('### COPY ###')
 
@@ -114,6 +232,7 @@ do_regall = False
 do_copy = False
 do_move = False
 do_add  = False
+do_stack = False
 file = []
 
 
@@ -158,6 +277,16 @@ if '-R' in args or '--register-all' in args:
         pass
     do_regall = True
 
+if '-s' in args or '--stack' in args:
+    try:
+        args.remove('-s')
+        args.remove('--stack')
+    except:
+        pass
+    do_stack = True
+
+
+
 if len(args) > 2:
     print('Wrong argument!')
     disp_help()
@@ -169,15 +298,36 @@ if len(args) == 2:
 elif len(args) == 1:
     to_path   = args[0]    
 
+
+files = []
+
 if do_copy == True or do_move == True:
     if len(args) != 2:
         print('Please specify from and to path')
         disp_help()
         sys.exit()
     files = copy_files(from_path, to_path, do_move)
+else:
+    if len(args) != 1:
+        print('Please specify only target')
+        disp_help()
+        sys.exit()
 
-if do_add == True:
-    add_files(to_path,files)
+    with open('./config.json', 'r') as f:
+        config = json.load(f)
+    for filter in config["filters"]:
+        from_pattern = os.path.join(to_path, filter) + '\*.fits'
+        files = files + glob.glob(from_pattern)
+
+
+if do_add == True:    
+    dss_files = add_files(to_path,files)
+else:
+    from_pattern = os.path.join(to_path, '') + '*.dssfilelist'
+    dss_files = glob.glob(from_pattern)
 
 if do_reg == True or do_regall == True:
-    reg_files(do_regall)
+    reg_files(do_regall, dss_files)
+
+if do_stack == True:
+    stack_files( dss_files)    
