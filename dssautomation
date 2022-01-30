@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+from cmath import exp
 from re import A, I
 import sys
 import shutil, os
@@ -9,6 +10,9 @@ import json
 from pathlib import Path
 from astropy.io import fits
 import subprocess
+from numpy import append
+
+from sklearn.model_selection import GroupShuffleSplit
 
 #from sympy import appellf1, arg
 
@@ -18,7 +22,7 @@ def disp_help():
     print('display some help here!')
 
 ###########################################
-def add_files(dir, files):
+def add_files(dir, files, super):
     print('### add ###')
     # read and collect all fits files in subdirectory of every filter
 
@@ -28,43 +32,63 @@ def add_files(dir, files):
     with open('./config.json', 'r') as f:
         config = json.load(f)
 
+    groups = []
+
+    curdir = os.getcwd()
 
     for f in files:
         entry_found = False    
-        
+         
         path         = os.path.dirname(f)
         path, filter = os.path.split(path)
+        path, imagetype = os.path.split(path)
         foldername   = os.path.basename(os.path.normpath(path))
         rel_filename = os.path.relpath(f, path)
         if rel_filename[0] != '.':
             rel_filename = os.path.join('.',rel_filename)
 
-        dss_file = foldername + '_' + filter + '.dssfilelist'
+        if super == True:
+            dss_file = foldername + '_' + 'SUPER'  + '.dssfilelist'
+        else:
+            dss_file = foldername + '_' + filter + '.dssfilelist'
+
         dss_file_path = os.path.join(path,dss_file)
         dss_file_folder = path
-        
-        entry_found = False
 
-        line_index = 0
+        os.chdir(dss_file_folder) #switch to make relative paths work
+#        print(dss_file_folder)
+
+        entry_found = False
+        dark_cali_file = ''
 
         print(rel_filename)
 
         #read offset and gain from fits
         hdul = fits.open(f)
-        hdul[0].header['GAIN']
-        hdul[0].header['OFFSET']
+        gain   = hdul[0].header['GAIN']
+        offset = hdul[0].header['OFFSET']
+        exposure = hdul[0].header['EXPOSURE']
+        if exposure == 0:
+            exposure = hdul[0].header['EXPTIME']
 
         #search for correct flat and dark specified in config
         for dark in config['darks']:
-            if dark['gain'] == hdul[0].header['GAIN'] and dark['offset'] == hdul[0].header['OFFSET']:
+            if dark['seconds'] == exposure and dark['gain'] == gain and dark['offset'] == offset:
                 dark_cali_file = dark['location']
+                try:
+                    rel_dark_cali_file = os.path.relpath(dark_cali_file,dss_file_folder)                
+                except ValueError:
+                    rel_dark_cali_file = dark_cali_file
+
         for flat in config['flats']:
             if flat['filter'] == filter:
                 flat_cali_file = flat['location']
+                try:
+                    rel_flat_cali_file = os.path.relpath(flat_cali_file,dss_file_folder)                
+                except ValueError:
+                    rel_flat_cali_file = flat_cali_file
 
 
-        flats = []
-        darks = []
         lines = []
 
         if os.path.exists(dss_file_path) == False:
@@ -74,22 +98,29 @@ def add_files(dir, files):
 
             #add flats + darks
             if dark_cali_file != '':
-                try:
-                    rel_dark_cali_file = os.path.relpath(dark_cali_file,dss_file_folder)                
-                except ValueError:
-                    rel_dark_cali_file = dark_cali_file
-
                 lines.append('1\tdark\t' + rel_dark_cali_file  + '\n')
             if flat_cali_file != '':
-                try:
-                    rel_flat_cali_file = os.path.relpath(flat_cali_file,dss_file_folder)                
-                except ValueError:
-                    rel_flat_cali_file = flat_cali_file
                 lines.append('1\tflat\t' + rel_flat_cali_file + '\n')
             
-            #add default config
-            lines.append(config['dss_config'])
-                        
+            #add default config            
+            if filter in ['Ha','Sii','Oiii']:
+                lines.append(config['rgb_config'])
+            else:
+                lines.append(config['nb_config'])
+            
+            groups = []
+
+            #build initial group
+            if len(groups) == 0:
+                group = {}
+                group['id'] = '0'
+                group['index'] = 1
+                group['gain']  = gain
+                group['offset'] = offset
+                group['exposure'] = int(exposure)
+                group['filter'] = filter
+                groups.append(group)          
+
         else:
             #open existing dss list file
             with open(dss_file_path) as file:
@@ -101,37 +132,91 @@ def add_files(dir, files):
             dss_file_list.append(dss_file_path)
 
 
-        # search for master flats and master darks in file
-            for line in lines:
-                if ( line[0] == '1' or line[0] == '0' ) and line[2] == 'd':
-                    darks.append(line[7:-1])
-                elif ( line[0] == '1' or line[0] == '0' ) and line[2] == 'f':
-                    flats.append(line[7:-1])
-                elif ( line[0] == '#' ):
-                    break        
+        # find other groups that are already in file
+        new_group = {}
+        new_group['index'] = 0
+        for idx, line in enumerate(lines):
 
-        for line in lines:
+            if ( line[0] == '1' or line[0] == '0' ) and line[2] == 'l':
+                # add info about exposure, gain and offset for group
+                if new_group['index'] != 0:
+                    hdul = fits.open(line[8:-1])
+                    
+                    new_group['gain']     = hdul[0].header['GAIN']
+                    new_group['offset']   = hdul[0].header['OFFSET']
+                    new_group['exposure'] = hdul[0].header['EXPOSURE']
+                    new_group['filter']   = hdul[0].header['FILTER']
+
+                    if not new_group in groups:
+                        groups.append(new_group)
+                        print(line)
+                        print(new_group)
+                    new_group = {}
+                    new_group['index'] = 0
+            elif ( line[0:9] == '#GROUPID#' ):
+                # new group - details to be filled by first image
+                new_group = {}
+                new_group['id'] = line[9:10]
+                new_group['index'] = idx
+                new_group['gain']  = 0
+                new_group['offset'] = 0
+                new_group['exposure'] = 0
+                new_group['filter'] = ''
+            elif ( line[0:4] == '#WS#' ):
+                last_line = idx
+                # no more groups expected
+                break        
+        
+        
+
+        #search for group that matches fits criteria
+        current_group = {}
+        for group in groups:
+            if group['exposure'] == exposure and group['gain'] == gain and group['offset'] == offset and group['filter'] == filter:
+                current_group = group
+                break
+        if current_group == {}:
+            #file does not cotain a matching group - create new group
+            group = {}
+            group['id'] = str(len(groups))
+            group['index'] = last_line
+            group['gain']  = gain
+            group['offset'] = offset
+            group['exposure'] = int(exposure)
+            group['filter'] = filter
+            print(group)
+            groups.append(group)
+            current_group = group
+            lines.insert(last_line,'#GROUPID#'+group['id']+'\n')
+            last_line = last_line + 1            
+            lines.insert(last_line,'1\tdark\t' + rel_dark_cali_file  + '\n')
+            last_line = last_line + 1
+            lines.insert(last_line,'1\tflat\t' + rel_flat_cali_file  + '\n')
+            last_line = last_line + 1
+
+
+        for idx,line in enumerate(lines):
             if line[0] == 'C' or line[0] == 'D':                
-                line_index = line_index + 1
                 continue
             elif line[0] == '1' or line[0] == '0':
                 if line[2] == 'l' and  rel_filename in line:
                     entry_found = True
                     break
-            else:
-                line_index = line_index + 1
-                break
-            line_index = line_index + 1
+            elif ( line[4] == '#WS#' ):
+                break        
 
         if entry_found == False:
             line = '1\tlight\t' + rel_filename + '\n'
-            lines.insert(line_index-1,line)
+            lines.insert( current_group['index'] + 1,line)
             with open(dss_file_path, 'w') as f:
                 for line in lines:
                     f.write(line)
 #                if dss_file_path not in dss_file_list_set:
 #                    dss_file_list_set.add(dss_file_path)
 #                    dss_file_list.append(dss_file_path)
+    
+    os.chdir(curdir) # change directory back
+
     return dss_file_list
                 
 def stack_files(dss_files):
@@ -196,7 +281,7 @@ def copy_files(dir_from, dir_to, do_move):
         elif '_G_' in filename:
             filter = 'G'
         elif '_B_' in filename:
-            filter = 'G'
+            filter = 'B'
         elif '_Ha_' in filename:
             filter = 'Ha'
         elif '_Oiii_' in filename:
@@ -207,7 +292,8 @@ def copy_files(dir_from, dir_to, do_move):
             print('ERROR: Unknown Filter Pattern for File: ' + os.path.basename(f))
             continue
 
-        target_path = os.path.join(dir_to, '') + os.path.join(filter, '')
+        #target_path = os.path.join(dir_to, '') + os.path.join('lights', '') + os.path.join(filter, '')
+        target_path = os.path.join(dir_to, 'lights', filter, '')
         Path(target_path).mkdir(parents=True, exist_ok=True)
 
         target_file = target_path + os.path.basename(f)
@@ -217,10 +303,12 @@ def copy_files(dir_from, dir_to, do_move):
         shutil.copy(f, target_file)
         if do_move == True:
             os.remove(f)
-        return target_files
+    
+    return target_files
 
-if len(sys.argv) < 4:
+if len(sys.argv) < 2:
     print('Not enough arguments')
+    disp_help()
     sys.exit()
 
 args = sys.argv
@@ -233,6 +321,7 @@ do_copy = False
 do_move = False
 do_add  = False
 do_stack = False
+do_add_super = False
 file = []
 
 
@@ -260,6 +349,15 @@ if '-a' in args or '--add' in args:
     except:
         pass    
     do_add = True
+
+if '-l' in args or '--super-l' in args:
+    try:
+        args.remove('-l')
+        args.remove('--super-l')
+    except:
+        pass    
+    do_add_super = True
+
 
 if '-r' in args or '--register' in args:
     try:
@@ -316,15 +414,34 @@ else:
     with open('./config.json', 'r') as f:
         config = json.load(f)
     for filter in config["filters"]:
-        from_pattern = os.path.join(to_path, filter) + '\*.fits'
+        from_pattern = os.path.join(to_path, 'lights', filter) + '\*.fits'
+        print(from_pattern)
         files = files + glob.glob(from_pattern)
 
 
 if do_add == True:    
-    dss_files = add_files(to_path,files)
+    dss_files = add_files(to_path,files,False)
 else:
     from_pattern = os.path.join(to_path, '') + '*.dssfilelist'
     dss_files = glob.glob(from_pattern)
+
+if do_add_super == True:
+    from_pattern = os.path.join(to_path, 'lights\R' ) + '\*.fits'
+    super_files =  glob.glob(from_pattern)
+    from_pattern = os.path.join(to_path, 'lights\G' ) + '\*.fits'
+    super_files = super_files + glob.glob(from_pattern)
+    from_pattern = os.path.join(to_path, 'lights\B' ) + '\*.fits'
+    super_files = super_files + glob.glob(from_pattern)
+    from_pattern = os.path.join(to_path, 'lights\L' ) + '\*.fits'
+    super_files = super_files + glob.glob(from_pattern)
+
+#    foldername   = os.path.basename(os.path.normpath(to_path))
+#    dss_super_file = os.path.join(to_path, '') + foldername + '_SUPER.dssfilelist'
+#    dss_files = dss_files + dss_super_file
+#    dss_super_files = []
+#    dss_super_files.append( dss_super_file )
+    dss_files = dss_files + add_files(to_path,super_files,True)
+
 
 if do_reg == True or do_regall == True:
     reg_files(do_regall, dss_files)
