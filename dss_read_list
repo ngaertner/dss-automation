@@ -1,0 +1,60 @@
+import os
+import sys
+from astropy.io import fits
+
+def err_no_dds_file( ):
+  print ("Please specify DSS List file")
+  exit( )
+  return
+
+
+#check parameters
+if not len(sys.argv) == 2:
+  err_no_dds_file( )
+
+
+file = sys.argv[1]
+  
+if ( not os.path.isfile(file) ) or ( not file.endswith(".txt") ):
+  err_no_dds_file( )
+
+#open DSS list
+
+listfile = open(file, "r")
+firstline = listfile.readline()
+
+if not firstline.strip() == "DSS file list":
+  err_no_dds_file( )
+
+
+dssfiles = []
+  
+for line in listfile:
+  if line[0] == "#":
+    continue
+  if line[2:7] == "light":
+    dssfiles.append( line[8:-5] )
+  elif line[2:10] == "reflight":
+    dssfiles.append( line[11:-5] )
+  else:
+    continue
+
+
+for line in dssfiles:
+  filename = line + ".Info.txt"
+  txtfile = open(filename, "r")
+  firstline = txtfile.readline()
+  if not firstline[0:17] == "OverallQuality = ":
+    print ("ERROR: File does not contain quality Info: " + filename)
+    continue
+  quality = firstline[17:27]
+  quality = quality[0:-1]
+  quality_flt = float(quality.strip(' "'))
+  quality_flt = round(quality_flt,2)
+  
+  filename = line + ".reg.fts"
+  fits_file = fits.open(filename)
+  print(repr(fits.getheader(filename, 0)))
+  fits.setval(filename, "DSSWEIGHT", value=quality_flt)
+
+  

@@ -320,8 +320,8 @@ if len(sys.argv) < 2:
     disp_help()
     sys.exit()
 
-args = sys.argv
-args.pop(0)
+#args = sys.argv
+#args.pop(0)
 
 do_copy = False
 do_reg  = False
@@ -339,15 +339,16 @@ parser = DefaultArgParser() #argparse.ArgumentParser()
 parser.add_argument("source_dir", nargs='?', help="source directory for copy or move" )
 parser.add_argument("project_dir", help="project directory where fits should be stored")
 group = parser.add_mutually_exclusive_group()
-group.add_argument("-m", "--move", help="move files from source folder to project folder",action="store_true")
-group.add_argument("-c", "--copy", help="copy files from source folder to project folder",action="store_true")
-parser.add_argument("-a", "--add", help="add files to (existing or new) dsslist file",action="store_true")
-parser.add_argument("-l", "--super-l", help="create a SUPER_L file out of R, G, B, L",action="store_true")
-parser.add_argument("-r", "--register", help="register all non-registered files in dssfiles of project folder",action="store_true")
-parser.add_argument("-R", "--register-all", help="(re-)register all files in dssfiles of project folder",action="store_true")
-parser.add_argument("-s", "--stack", help="(re-)stack all files in dssfiles of project folder",action="store_true")
+group.add_argument("-m", "--move", help="move files from source folder to project folder", action="store_true")
+group.add_argument("-c", "--copy", help="copy files from source folder to project folder", action="store_true")
+parser.add_argument("-a", "--add", help="add files to (existing or new) dsslist file", action="store_true")
+parser.add_argument("-l", "--super-l", help="create a SUPER_L file out of R, G, B, L", action="store_true")
+parser.add_argument("-r", "--register", help="register all non-registered files in dssfiles of project folder", action="store_true")
+parser.add_argument("-R", "--register-all", help="(re-)register all files in dssfiles of project folder", action="store_true")
+parser.add_argument("-s", "--stack", help="(re-)stack all files in dssfiles of project folder", action="store_true")
 args = parser.parse_args()
 
+print(args) 
 
 if args.move:
     do_move = True

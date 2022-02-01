@@ -1,0 +1,26 @@
+# -*- coding: utf-8 -*-
+"""
+==================
+Edit a FITS header
+==================
+
+This example describes how to edit a value in a FITS header
+using `astropy.io.fits`.
+
+-------------------
+
+*By: Adrian Price-Whelan*
+
+*License: BSD*
+
+-------------------
+
+"""
+
+from astropy.io import fits
+import os
+
+for file in os.listdir("./res"):
+    if file.endswith(".txt"):
+        print(os.path.join("/mydir", file))
+        
