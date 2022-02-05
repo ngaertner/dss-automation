@@ -1,7 +1,9 @@
 #!/usr/bin/python3
+from asyncore import write
 from cmath import exp
 from logging import NullHandler
 from re import A, I
+from ssl import OP_NO_RENEGOTIATION
 import sys
 import shutil, os
 import glob
@@ -10,10 +12,12 @@ import json
 #from warnings import catch_warnings
 from pathlib import Path
 from tkinter.messagebox import NO
+from venv import create
 from astropy.io import fits
 import subprocess
 from numpy import append
 import argparse
+import re
 
 from sklearn.model_selection import GroupShuffleSplit
 from sympy import N
@@ -42,12 +46,11 @@ def add_files(dir, files, super):
         config = json.load(f)
 
     groups = []
-
     curdir = os.getcwd()
 
     for f in files:
         entry_found = False    
-         
+
         path         = os.path.dirname(f)
         path, filter = os.path.split(path)
         path, imagetype = os.path.split(path)
@@ -81,6 +84,8 @@ def add_files(dir, files, super):
             exposure = hdul[0].header['EXPTIME']
 
         #search for correct flat and dark specified in config
+        rel_dark_cali_file = ''
+        dark_cali_file = ''
         for dark in config['darks']:
             if dark['seconds'] == exposure and dark['gain'] == gain and dark['offset'] == offset:
                 dark_cali_file = dark['location']
@@ -89,6 +94,9 @@ def add_files(dir, files, super):
                 except ValueError:
                     rel_dark_cali_file = dark_cali_file
 
+
+        rel_flat_cali_file = ''
+        flat_cali_file = ''
         for flat in config['flats']:
             if flat['filter'] == filter:
                 flat_cali_file = flat['location']
@@ -131,6 +139,7 @@ def add_files(dir, files, super):
                 groups.append(group)          
 
         else:
+            last_line = 0
             #open existing dss list file
             with open(dss_file_path) as file:
                 lines = file.readlines()
@@ -188,7 +197,7 @@ def add_files(dir, files, super):
             #file does not cotain a matching group - create new group
             group = {}
             group['id'] = str(len(groups))
-            group['index'] = last_line
+            group['index'] = last_line-1
             group['gain']  = gain
             group['offset'] = offset
             group['exposure'] = int(exposure)
@@ -216,6 +225,7 @@ def add_files(dir, files, super):
 
         if entry_found == False:
             line = '1\tlight\t' + rel_filename + '\n'
+           # lines.insert( current_group['index'],line)
             lines.insert( current_group['index'] + 1,line)
             with open(dss_file_path, 'w') as f:
                 for line in lines:
@@ -228,7 +238,7 @@ def add_files(dir, files, super):
 
     return dss_file_list
                 
-def stack_files(dss_files):
+def stack_files(dss_files, create_intermediate):
     print('### stack ###')
     with open('./config.json', 'r') as f:
         config = json.load(f)
@@ -240,14 +250,43 @@ def stack_files(dss_files):
 
     arguments.append (command)                
 
-    arguments.append('/S')
+    if create_intermediate:
+        arguments.append('/SR')
+    else:
+        arguments.append('/S')
+
     arguments.append('/FITS')
     
     for dss_file in dss_files:
+
+#        if create_intermediate:
+#            search = '#WS#Software\DeepSkyStacker\Stacking|CreateIntermediates=0'
+#            replace = '#WS#Software\DeepSkyStacker\Stacking|CreateIntermediates=1'
+#        else:
+#            search = '#WS#Software\DeepSkyStacker\Stacking|CreateIntermediates=1'
+#            replace = '#WS#Software\DeepSkyStacker\Stacking|CreateIntermediates=0'
+
+#        # opening the file in read mode
+#        replacement = ""
+#        original = ""
+#        with open(dss_file, "r") as fin:
+#            # using the for loop
+#            for line in fin:
+#                original = original + line
+#                line = line.strip()
+#                if line == search:
+#                    line = replace
+#                    print(replace)
+#                replacement = replacement + line + "\n"
+#        with  open(dss_file, "w") as fout:
+#            fout.write(replacement)
+
         arguments.append (dss_file)                
         subprocess.run(arguments)
         del arguments[-1]
 
+#        with  open(dss_file, "w") as fout:
+#            fout.write(original)
 
 
 ###########################################
@@ -331,6 +370,7 @@ do_move = False
 do_add  = False
 do_stack = False
 do_add_super = False
+do_intermediate = False
 to_path = ''
 from_path = ''
 file = []
@@ -346,6 +386,7 @@ parser.add_argument("-l", "--super-l", help="create a SUPER_L file out of R, G, 
 parser.add_argument("-r", "--register", help="register all non-registered files in dssfiles of project folder", action="store_true")
 parser.add_argument("-R", "--register-all", help="(re-)register all files in dssfiles of project folder", action="store_true")
 parser.add_argument("-s", "--stack", help="(re-)stack all files in dssfiles of project folder", action="store_true")
+parser.add_argument("-i", "--intermediate", help="create registered and calibrated intermediate FITS images while stacking", action="store_true")
 args = parser.parse_args()
 
 print(args) 
@@ -371,13 +412,16 @@ if args.register_all:
 if args.stack:
     do_stack = True
 
+if args.intermediate:
+    do_intermediate = True
+
 if args.project_dir is not None:
     to_path   = args.project_dir
-elif args.source_dir is not None:
+
+if args.source_dir is not None:
     from_path   = args.source_dir
 
 files = []
-
 if do_copy == True or do_move == True:
     if from_path == '' or to_path == '':
         print('Please specify from and to path')
@@ -391,14 +435,19 @@ else:
         print('Please specify only target')
         parser.print_help( )
         sys.exit()
-
     with open('./config.json', 'r') as f:
         config = json.load(f)
     for filter in config["filters"]:
-        from_pattern = os.path.join(to_path, 'lights', filter) + '\*.fits'
+        from_pattern = os.path.join(to_path, 'lights', filter) + os.sep + '*.fits'        
         print(from_pattern)
         files = files + glob.glob(from_pattern)
+    re = re.compile('.*.reg.fits')
+    for idx, f in enumerate(files)  :
+        if re.match(f):
+            files.pop(idx)
 
+
+print(files)
 
 if do_add == True:    
     dss_files = add_files(to_path,files,False)
@@ -407,13 +456,13 @@ else:
     dss_files = glob.glob(from_pattern)
 
 if do_add_super == True:
-    from_pattern = os.path.join(to_path, 'lights\R' ) + '\*.fits'
+    from_pattern = os.path.join(to_path, 'lights\R' ) + os.sep + '!(*.reg).fits'
     super_files =  glob.glob(from_pattern)
-    from_pattern = os.path.join(to_path, 'lights\G' ) + '\*.fits'
+    from_pattern = os.path.join(to_path, 'lights\G' ) + os.sep + '!(*.reg).fits'
     super_files = super_files + glob.glob(from_pattern)
-    from_pattern = os.path.join(to_path, 'lights\B' ) + '\*.fits'
+    from_pattern = os.path.join(to_path, 'lights\B' ) + os.sep + '!(*.reg).fits'
     super_files = super_files + glob.glob(from_pattern)
-    from_pattern = os.path.join(to_path, 'lights\L' ) + '\*.fits'
+    from_pattern = os.path.join(to_path, 'lights\L' ) + os.sep + '!(*.reg).fits'
     super_files = super_files + glob.glob(from_pattern)
 
 #    foldername   = os.path.basename(os.path.normpath(to_path))
@@ -428,4 +477,4 @@ if do_reg == True or do_regall == True:
     reg_files(do_regall, dss_files)
 
 if do_stack == True:
-    stack_files( dss_files, )    
+    stack_files( dss_files, do_intermediate )    

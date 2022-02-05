@@ -19,6 +19,7 @@
         { "seconds": 60,  "offset": 50, "gain": 139, "location": "//qnap/astro/Fotos/Calibration/Single/Darks/Dark 60s 139 50/MasterDark_Gain139_60s.tif"},
         { "seconds": 120, "offset": 50, "gain": 139, "location": "//qnap/astro/Fotos/Calibration/Single/Darks/Dark 120s 139 50/MasterDark_Gain139_120s.tif"},
         { "seconds": 180, "offset": 50, "gain": 139, "location": "//qnap/astro/Fotos/Calibration/Single/Darks/Dark 180s 139 50/MasterDark_Gain139_180s.tif"},
+        { "seconds": 300, "offset": 50, "gain": 139, "location": "//qnap/astro/Fotos/Calibration/Single/Darks/Dark 300s 139 50/MasterDark_Gain139_300s.tif"},
         { "seconds": 600, "offset": 50, "gain": 139, "location": "//qnap/astro/Fotos/Calibration/Single/Darks/Dark 600s 139 50/MasterDark_Gain139_600s.tif" },
         { "seconds": 10,  "offset": 50, "gain": 76,  "location": "//qnap/astro/Fotos/Calibration/Single/Darks/Dark 10s 76 50/MasterDark_Gain76_10s.tif" },
         { "seconds": 30,  "offset": 50, "gain": 76,  "location": "//qnap/astro/Fotos/Calibration/Single/Darks/Dark 30s 76 50/MasterDark_Gain76_30s.tif" },
