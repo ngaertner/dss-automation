@@ -354,10 +354,10 @@ def copy_files(dir_from, dir_to, do_move):
     
     return target_files
 
-if len(sys.argv) < 2:
-    print('Not enough arguments')
-    disp_help()
-    sys.exit()
+#if len(sys.argv) < 2:
+#    print('Not enough arguments')
+#    disp_help()
+#    sys.exit()
 
 #args = sys.argv
 #args.pop(0)
