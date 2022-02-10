@@ -23,7 +23,7 @@ To use this script the following prerequesites need to be met:
 The script works well under the following assumptions:
 
  - The source directory contains a the fits files for the different filters
- - The filter can be determined using the filename (pattern *_<filter>_* )
+ - The filter can be determined using the filename (pattern *\_\<filter>\_* )
  
 ## Execution
 
