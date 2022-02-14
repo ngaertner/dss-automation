@@ -1,9 +1,10 @@
 #!/usr/bin/python3
-from asyncore import write
-from cmath import exp
+#from asyncore import write
+from asyncio import write
+#from cmath import exp
 from logging import NullHandler
-from re import A, I
-from ssl import OP_NO_RENEGOTIATION
+#from re import A, I
+#from ssl import OP_NO_RENEGOTIATION
 import sys
 import shutil, os
 import glob
@@ -19,8 +20,8 @@ from numpy import append
 import argparse
 import re
 
-from sklearn.model_selection import GroupShuffleSplit
-from sympy import N
+#from sklearn.model_selection import GroupShuffleSplit
+#from sympy import N
 
 #from sympy import appellf1, arg
 
