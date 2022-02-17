@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 #from asyncore import write
-from asyncio import write
+import asyncio
 #from cmath import exp
 from logging import NullHandler
 #from re import A, I
