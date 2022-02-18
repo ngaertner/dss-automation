@@ -52,7 +52,10 @@ def add_files(dir, files, super):
     for f in files:
         entry_found = False    
 
+        os.chdir(curdir) #switch to workdir
+
         path         = os.path.dirname(f)
+        print(path)
         path, filter = os.path.split(path)
         path, imagetype = os.path.split(path)
         foldername   = os.path.basename(os.path.normpath(path))
@@ -65,8 +68,10 @@ def add_files(dir, files, super):
         else:
             dss_file = foldername + '_' + filter + '.dssfilelist'
 
-        dss_file_path = os.path.join(path,dss_file)
-        dss_file_folder = path
+
+        dss_file_path = os.path.join(os.path.abspath(path),dss_file)
+
+        dss_file_folder = os.path.abspath(path)
 
         os.chdir(dss_file_folder) #switch to make relative paths work
 #        print(dss_file_folder)
@@ -77,7 +82,7 @@ def add_files(dir, files, super):
         print(rel_filename)
 
         #read offset and gain from fits
-        hdul = fits.open(f)
+        hdul = fits.open(rel_filename)
         gain   = hdul[0].header['GAIN']
         offset = hdul[0].header['OFFSET']
         exposure = hdul[0].header['EXPOSURE']
@@ -122,9 +127,9 @@ def add_files(dir, files, super):
             
             #add default config            
             if filter in ['Ha','Sii','Oiii']:
-                lines.append(config['rgb_config'])
-            else:
                 lines.append(config['nb_config'])
+            else:
+                lines.append(config['rgb_config'])
             
             groups = []
 
@@ -198,7 +203,7 @@ def add_files(dir, files, super):
             #file does not cotain a matching group - create new group
             group = {}
             group['id'] = str(len(groups))
-            group['index'] = last_line-1
+            group['index'] = last_line
             group['gain']  = gain
             group['offset'] = offset
             group['exposure'] = int(exposure)
@@ -228,7 +233,7 @@ def add_files(dir, files, super):
             line = '1\tlight\t' + rel_filename + '\n'
            # lines.insert( current_group['index'],line)
             lines.insert( current_group['index'] + 1,line)
-            with open(dss_file_path, 'w') as f:
+            with open(dss_file_path, 'w+') as f:
                 for line in lines:
                     f.write(line)
 #                if dss_file_path not in dss_file_list_set:
