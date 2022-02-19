@@ -39,7 +39,6 @@ def disp_help():
 def add_files(dir, files, super):
     print('### add ###')
     # read and collect all fits files in subdirectory of every filter
-
     dss_file_list = []
     dss_file_list_set = set(dss_file_list)
 
@@ -447,13 +446,11 @@ else:
         from_pattern = os.path.join(to_path, 'lights', filter) + os.sep + '*.fits'        
         print(from_pattern)
         files = files + glob.glob(from_pattern)
-    re = re.compile('.*.reg.fits')
+    regex = re.compile('.*.reg.fits')
     for idx, f in enumerate(files)  :
-        if re.match(f):
+        if regex.match(f):
             files.pop(idx)
 
-
-print(files)
 
 if do_add == True:    
     dss_files = add_files(to_path,files,False)
@@ -462,14 +459,19 @@ else:
     dss_files = glob.glob(from_pattern)
 
 if do_add_super == True:
-    from_pattern = os.path.join(to_path, 'lights\R' ) + os.sep + '!(*.reg).fits'
+    from_pattern = os.path.join(to_path, 'lights\R' ) + os.sep + '*.fits'
     super_files =  glob.glob(from_pattern)
-    from_pattern = os.path.join(to_path, 'lights\G' ) + os.sep + '!(*.reg).fits'
+    from_pattern = os.path.join(to_path, 'lights\G' ) + os.sep + '*.fits'
     super_files = super_files + glob.glob(from_pattern)
-    from_pattern = os.path.join(to_path, 'lights\B' ) + os.sep + '!(*.reg).fits'
+    from_pattern = os.path.join(to_path, 'lights\B' ) + os.sep + '*.fits'
     super_files = super_files + glob.glob(from_pattern)
-    from_pattern = os.path.join(to_path, 'lights\L' ) + os.sep + '!(*.reg).fits'
+    from_pattern = os.path.join(to_path, 'lights\L' ) + os.sep + '*.fits'
     super_files = super_files + glob.glob(from_pattern)
+
+    regex = re.compile('.*.reg.fits')
+    for idx, f in enumerate(super_files)  :
+        if regex.match(f):
+            super_files.pop(idx)
 
 #    foldername   = os.path.basename(os.path.normpath(to_path))
 #    dss_super_file = os.path.join(to_path, '') + foldername + '_SUPER.dssfilelist'
