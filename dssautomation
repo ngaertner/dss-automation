@@ -319,7 +319,11 @@ def reg_files(reg_all,dss_files):
 
 ###########################################
 def copy_files(dir_from, dir_to, do_move):
-    print('### COPY ###')
+    if do_move:
+      print('### MOVE ###')
+    else:
+      print('### COPY ###')
+
 
     target_files = []
     from_pattern = os.path.join(dir_from, '') + '*.fits'
