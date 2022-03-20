@@ -348,6 +348,10 @@ def copy_files(dir_from, dir_to, do_move):
         else:
             print('ERROR: Unknown Filter Pattern for File: ' + os.path.basename(f))
             continue
+        
+        if filename.startswith('BAD_'):
+            print('WARNING: File gets ignored due to BAD rating:' + os.path.basename(f))
+            continue
 
         #target_path = os.path.join(dir_to, '') + os.path.join('lights', '') + os.path.join(filter, '')
         target_path = os.path.join(dir_to, 'lights', filter, '')
