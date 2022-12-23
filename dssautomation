@@ -324,7 +324,6 @@ def copy_files(dir_from, dir_to, do_move):
     else:
       print('### COPY ###')
 
-
     target_files = []
     from_pattern = os.path.join(dir_from, '') + '*.fits'
     files = glob.glob(from_pattern)
@@ -352,6 +351,10 @@ def copy_files(dir_from, dir_to, do_move):
         if filename.startswith('BAD_'):
             print('WARNING: File gets ignored due to BAD rating:' + os.path.basename(f))
             continue
+        
+        if filters:
+            if filter not in filters:
+                continue            
 
         #target_path = os.path.join(dir_to, '') + os.path.join('lights', '') + os.path.join(filter, '')
         target_path = os.path.join(dir_to, 'lights', filter, '')
@@ -387,6 +390,8 @@ do_intermediate = False
 to_path = ''
 from_path = ''
 file = []
+filters = []
+dss_files = []
 
 parser = DefaultArgParser() #argparse.ArgumentParser()
 parser.add_argument("source_dir", nargs='?', help="source directory for copy or move" )
@@ -400,9 +405,11 @@ parser.add_argument("-r", "--register", help="register all non-registered files 
 parser.add_argument("-R", "--register-all", help="(re-)register all files in dssfiles of project folder", action="store_true")
 parser.add_argument("-s", "--stack", help="(re-)stack all files in dssfiles of project folder", action="store_true")
 parser.add_argument("-i", "--intermediate", help="create registered and calibrated intermediate FITS images while stacking", action="store_true")
+parser.add_argument("-f", "--filters", help="list of filters (comma separated)")
 args = parser.parse_args()
 
 print(args) 
+
 
 if args.move:
     do_move = True
@@ -434,6 +441,11 @@ if args.project_dir is not None:
 if args.source_dir is not None:
     from_path   = args.source_dir
 
+if args.filters is not None:
+    filters   = args.filters.split(',')
+
+print(filters)
+
 files = []
 if do_copy == True or do_move == True:
     if from_path == '' or to_path == '':
@@ -451,6 +463,11 @@ else:
     with open('./config.json', 'r') as f:
         config = json.load(f)
     for filter in config["filters"]:
+
+        if filters:
+            if filter not in filters:
+                continue  
+
         from_pattern = os.path.join(to_path, 'lights', filter) + os.sep + '*.fits'        
         print(from_pattern)
         files = files + glob.glob(from_pattern)
@@ -463,8 +480,15 @@ else:
 if do_add == True:    
     dss_files = add_files(to_path,files,False)
 else:
-    from_pattern = os.path.join(to_path, '') + '*.dssfilelist'
-    dss_files = glob.glob(from_pattern)
+    if filters:
+        for filter in filters:
+            from_pattern = os.path.join(to_path, '') + '*_' + filter +'.dssfilelist'
+            for entry in glob.glob(from_pattern):
+                dss_files.append(entry)
+    else:
+        from_pattern = os.path.join(to_path, '') + '*.dssfilelist'
+        dss_files = glob.glob(from_pattern)
+
 
 if do_add_super == True:
     from_pattern = os.path.join(to_path, 'lights\R' ) + os.sep + '*.fits'

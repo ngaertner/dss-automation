@@ -15,8 +15,9 @@ All steps can be either performed in one command or separately.
 
 To use this script the following prerequesites need to be met:
  - Install the latest version of DeepSkyStacker (DSS)
- - Installed Python 3 (https://www.python.org/)
- - Installed AstroPy (https://www.astropy.org/)
+ - Install Python 3 (https://www.python.org/)
+ - Install AstroPy (https://www.astropy.org/)
+   pip install astropy
  - Create master darks for the different exposures and master flats for the different filters using DSS
  - Copy "config.json.default" file to "config.json" and customize the settings
  
